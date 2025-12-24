@@ -189,7 +189,7 @@ for i = 0:r-1
 end
 
 t_vals = linspace(-5,5,400);
-W = 1;
+W = 1;                      %scaling factor, can be changed accordingly
 Srec = zeros(size(t_vals));
 
 for ti = 1:length(t_vals)
