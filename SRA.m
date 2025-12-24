@@ -166,8 +166,17 @@ for i = 0:max_order
     f_derivs(i+1) = diff(f_sym, x, i);
     f_handle{i+1} = matlabFunction(f_derivs(i+1), 'Vars', x);
 end
+f_sym = x;  % Change this to any symbolic function, e.g., sin(x), x^2, etc.
 
-W = 1;
+max_order = rho - 1;
+f_derivs = sym(zeros(1, max_order + 1));
+f_handle = cell(1, max_order + 1);
+
+for i = 0:max_order
+    f_derivs(i+1) = diff(f_sym, x, i);
+    f_handle{i+1} = matlabFunction(f_derivs(i+1), 'Vars', x);
+end
+
 l_vals_SW = -30:30;  % Truncation window (adjust if needed)
 S_Wf_vals = zeros(1, length(t_vals));
 
@@ -183,25 +192,60 @@ for ti = 1:length(t_vals)
     t = t_vals(ti);
     total_sum = 0;
 
-    for l = l_vals_SW
-        for i = 0:rho-1
+epsilon = [4 5 6 7];
+a = zeros(1,rho);
+
+for p = 1:rho
+    prodv = 1;
+    for q = 1:rho
+        if q ~= p
+            prodv = prodv * epsilon(q)/(epsilon(q)-epsilon(p));
+        end
+    end
+    a(p) = prodv;
+end
+
+
+Theta_tilde = sym(zeros(L,r));
+
+for n = 1:L
+    for i = 1:r
+        S = 0;
+        for p = 1:rho
+            S = S + a(p)*subs(Theta(n,i),t,t-epsilon(p));
+        end
+        Theta_tilde(n,i) = simplify(S);
+    end
+end
+end
+
+f_sym = xs;                % f(x) = x
+f_fun = cell(1,r);
+
+for i = 0:r-1
+    f_fun{i+1} = matlabFunction(diff(f_sym,xs,i),'Vars',xs);
+end
+
+
+W = 1;                   %scaling vector
+Srec = zeros(size(tvals));
+
+for ti = 1:length(tvals)
+    tt = tvals(ti);
+    S = 0;
+    for l = -20:0      
+        for i = 0:r-1
             for n = 0:L-1
-                xn = X_values(n+1);
-                f_arg = (xn + kappa * l - kappa) / W;
-                f_val = f_handle{i+1}(f_arg) / W^i;
-
-                theta_arg = W * t - kappa * l + kappa;
-                p = mod(i, r);
-                theta_val = Theta_fun{n+1, p+1}(theta_arg);
-                theta_val = real(theta_val);  % Remove small imaginary parts
-
-                total_sum = total_sum + f_val * theta_val;
+                fval = f_fun{i+1}((X(n+1)+rho*l)/W);
+                thetaval = real(double( ...
+                    subs(Theta_tilde(n+1,i+1),t,W*tt-rho*l)));
+                S = S + (1/W^i)*fval*thetaval;
             end
         end
     end
-
-    S_Wf_vals(ti) = total_sum;
+    Srec(ti) = S;
 end
+
 
 % Compute original function
 f_original_vals = arrayfun(@(t) f_handle{1}(t), t_vals);
