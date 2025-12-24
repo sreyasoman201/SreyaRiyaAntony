@@ -3,13 +3,13 @@ clear;
 close all;
 
 [phi_vals, ~, xval_grid] = wavefun('db3', 10);
-phi_interp = @(xnum) interp1(xval_grid, phi_vals, xnum, 'pchip', 0);
+phi_interp = @(xnum) interp1(xval_grid, phi_vals, xnum, 'pchip', 0);    %db3
 W=60;
 x_vals = linspace(-4, 4, 500);
 t = x_vals;
 
 S = zeros(size(t));
-g_1 = @(x)  exp(-x.^2/4) .* sin(2 * pi * x);
+g_1 = @(x)  exp(-x.^2/4) .* sin(2 * pi * x);       %choose any function
 
 for l = -100:100
 
