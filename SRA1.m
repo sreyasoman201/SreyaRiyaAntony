@@ -1,122 +1,98 @@
 clc;
 clear;
-syms x z w real
+close all;
 
-% Compute the db3 scaling function (phi) and wavelet function (psi)
-[phi_vals, psi_vals, xval_grid] = wavefun('db3', 10);
+[phi_vals, ~, xval_grid] = wavefun('db3', 10);
+phi_interp = @(xnum) interp1(xval_grid, phi_vals, xnum, 'pchip', 0);
+W=60;
+x_vals = linspace(-4, 4, 500);
+t = x_vals;
 
-% Define the scaling function phi(x) via interpolation
-phi = @(xnum) interp1(xval_grid, phi_vals, xnum, 'linear', 0); 
+S = zeros(size(t));
+g_1 = @(x)  exp(-x.^2/4) .* sin(2 * pi * x);
 
-hold on
-fplot(phi,x)
-hold off
+for l = -100:100
 
-% Settings
-L = 5; 
-r = 1;   
-rho = L * r;  
-A_mat = sym(zeros(rho, rho));  
-X_values = [0.02447,0.2061,0.5,0.79389,0.97553]; 
+    arg = W*x_vals - 5*l;
 
-% Construct the matrix A_mat
-row_start = 1;  
-for j = 1:L 
-    block_rows = r;  
-    block_cols = rho; 
-    x_val = X_values(j);  
-    A_block = sym(zeros(block_rows, block_cols));  
-    
-    for p = 0:block_rows-1
-        for q = 0:block_cols-1
-            term1 = phi(x_val - q);
-            term2 = phi(x_val - q + rho);
-            A_block(p+1, q+1) = term1 + term2 * z;
-        end
-    end
-    
-    A_mat(row_start:row_start + block_rows - 1, :) = A_block;
-    row_start = row_start + r;  
+    Theta00 = @(t)-0.0018324229699212648*phi_interp(t) +245.24152109075183*phi_interp(t+4) ...
+                    +0.2614259690192384*phi_interp(t+3) -0.4273254019213667*phi_interp(t+2) ...
+                    -0.11028510154071818*phi_interp(t+1);
+
+    Theta10 = @(t) -0.012297391131130342*phi_interp(t) -398.2368909789256*phi_interp(t+4) ...
+                    +20.0915329951772*phi_interp(t+3) +7.015304108989707*phi_interp(t+2) ...
+                    +1.8799924576950435*phi_interp(t+1);
+
+    Theta20 = @(t) 0.022618906374038874*phi_interp(t) +122.92313215171635*phi_interp(t+4) ...
+                    +0.867673637473107*phi_interp(t+3) +10.051805230050844*phi_interp(t+2) ...
+                    +2.5830241149363533*phi_interp(t+1);
+
+    Theta30 = @(t) 0.8720615623572289*phi_interp(t) +103.93203753708859*phi_interp(t+4) ...
+                   -71.36336979810179*phi_interp(t+3) -41.91512204307734*phi_interp(t+2) ...
+                    -7.7736416302137945*phi_interp(t+1);
+
+    Theta40 = @(t) 0.11944934536451099*phi_interp(t) -72.8597997936016*phi_interp(t+4) ...
+                    +51.14273719699365*phi_interp(t+3) +26.2753381065639*phi_interp(t+2) ...
+                    +4.420910159248203*phi_interp(t+1);
+
+    % coefficients
+    a = [5, -10, 10, -5, 1] ;
+    shifts = [5, 10, 15, 20, 25];
+
+    theta1 = ( a(1)*Theta00(arg-shifts(1)) + a(2)*Theta00(arg-shifts(2)) ...
+             + a(3)*Theta00(arg-shifts(3)) + a(4)*Theta00(arg-shifts(4)) ...
+             + a(5)*Theta00(arg-shifts(5)) ) * g_1((5*l + 0.02447174)/W);
+
+    theta2 = ( a(1)*Theta10(arg-shifts(1)) + a(2)*Theta10(arg-shifts(2)) ...
+             + a(3)*Theta10(arg-shifts(3)) + a(4)*Theta10(arg-shifts(4)) ...
+             + a(5)*Theta10(arg-shifts(5)) ) * g_1((5*l + 0.20610737)/W);
+
+    theta3 = ( a(1)*Theta20(arg-shifts(1)) + a(2)*Theta20(arg-shifts(2)) ...
+             + a(3)*Theta20(arg-shifts(3)) + a(4)*Theta20(arg-shifts(4)) ...
+             + a(5)*Theta20(arg-shifts(5)) ) * g_1((5*l + 0.5)/W);
+
+    theta4 = ( a(1)*Theta30(arg-shifts(1)) + a(2)*Theta30(arg-shifts(2)) ...
+             + a(3)*Theta30(arg-shifts(3)) + a(4)*Theta30(arg-shifts(4)) ...
+             + a(5)*Theta30(arg-shifts(5)) ) * g_1((5*l + 0.79389263)/W);
+
+    theta5 = ( a(1)*Theta40(arg-shifts(1)) + a(2)*Theta40(arg-shifts(2)) ...
+             + a(3)*Theta40(arg-shifts(3)) + a(4)*Theta40(arg-shifts(4)) ...
+             + a(5)*Theta40(arg-shifts(5)) ) * g_1((5*l + 0.97552826)/W);
+
+    S = S + theta1 + theta2 + theta3 + theta4 + theta5;
 end
 
-disp('Symbolic Matrix A_mat:');
-disp(A_mat);
 
-% Calculate the determinant and inverse of A_mat
-det_A = simplify(det(A_mat));
-disp('Determinant of A_mat:');
-disp(det_A);
+% Plot the original function g_1(x)
+hold on;
+plot(x_vals, g_1(x_vals), 'k', 'LineWidth',1);
 
-if det_A ~= 0
-    inv_A = simplify(inv(A_mat));
-    disp('Inverse of A_mat:');
-    disp(inv_A);
+% Plot the reconstructed function S(x)
+plot(x_vals, S, '--r', 'LineWidth',1);
 
-    % Compute symbolic Fourier transform of inverse matrix
-    Fourier_inv_A = sym(zeros(size(inv_A)));
-    [rA, cA] = size(inv_A);
-    
-    for i = 1:rA
-        for j = 1:cA
-            f_expr = subs(inv_A(i,j), z, exp(2*pi*1i*x));
-            Fourier_inv_A(i,j) = int(f_expr * exp(-2*pi*1i * w * x), x, 0, 1);
-        end
-    end
-    
-    disp('Fourier transform of Inverse of A_mat:');
-    disp(Fourier_inv_A);
+ylim([-1.5 1.5])
+legend('$f$', sprintf('$\\tilde{S}_{%d}f$', W), ...
+       'Interpreter', 'latex', ...
+       'FontSize', 18);  % Increase font size
 
-    % Precompute Theta coefficients and shifts for numerical evaluation
-    Theta_coeffs = cell(L, r);
-    Theta_shifts = cell(L, r);
+ax = gca;
+ax.XAxisLocation = 'origin';
+ax.YAxisLocation = 'origin';
 
-    for n = 0:L-1
-        for p = 0:r-1
-            coeffs = [];
-            shifts = [];
-            for q = 0:rho-1
-                for nu = -20:20
-                    coeff = limit(Fourier_inv_A(q+1, n*r + p + 1), w, nu);
-                    if coeff ~= 0
-                        coeffs(end+1) = coeff;
-                        shifts(end+1) = rho*nu + q;
-                    end
-                end
-            end
-            Theta_coeffs{n+1, p+1} = coeffs;
-            Theta_shifts{n+1, p+1} = shifts;
-        end
-    end
+hold off;
 
-    % Plotting Theta functions numerically using phi()
-    x_vals = linspace(-10, 10, 1000);
-    colors = lines(L * r);
-    figure;
-    hold on;
+% Compute reconstruction errors
+g1_vals = g_1(x_vals);
+valid_idx = ~isnan(S) & ~isnan(g1_vals);
 
-    legend_entries = {};
-    idx = 1;
-    for n = 1:L
-        for p = 1:r
-            y_vals = zeros(size(x_vals));
-            coeffs = Theta_coeffs{n, p};
-            shifts = Theta_shifts{n, p};
-            for k = 1:length(coeffs)
-                y_vals = y_vals + double(coeffs(k)) * phi(x_vals - shifts(k));
-            end
-            plot(x_vals, y_vals, 'LineWidth', 2, 'Color', colors(idx, :));
-            legend_entries{end+1} = sprintf('$\\Theta_{%d%d}$', n-1, p-1); %#ok<SAGROW>
-            idx = idx + 1;
-        end
-    end
+S_valid = S(valid_idx);
+g1_valid = g1_vals(valid_idx);
 
-    xlabel('t');
-    ylabel('$\Theta_{ni}(t)$', 'Interpreter', 'latex');
-    %title('Plots of \Theta_{np}(x)', 'Interpreter', 'latex');
-    legend(legend_entries, 'Interpreter', 'latex');
-    grid on;
-    hold off;
+max_error = max(abs(S_valid - g1_valid));
+mse_error = mean((S_valid - g1_valid).^2);
+l2_error = sqrt(sum((S_valid - g1_valid).^2) * (x_vals(2) - x_vals(1)));
 
-else
-    disp('The matrix is singular and cannot be inverted.');
-end
+% Display error metrics
+disp(['Maximum Absolute Error: ', num2str(max_error)]);
+disp(['Mean Squared Error: ', num2str(mse_error)]);
+disp(['L2 Norm (RMS Error): ', num2str(l2_error)]);
